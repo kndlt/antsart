@@ -1,54 +1,782 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Promised Land Simulation</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: black;
-      overflow: hidden;
-    }
-    #promised-canvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-    }
-    #hud {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: white;
-      font-family: monospace;
-      font-size: 12px;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promisers WASM - Rust WebAssembly Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: white;
+            overflow: hidden;
+        }
+        
+        #promised-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: black;
+            cursor: grab;
+            display: block;
+        }
+        
+        #promised-canvas:active {
+            cursor: grabbing;
+        }
+        
+        /* HUD Overlays */
+        .hud-overlay {
+            position: absolute;
+            background-color: rgba(42, 42, 42, 0.9);
+            backdrop-filter: blur(5px);
+            border-radius: 8px;
+            padding: 15px;
+            color: white;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .hud-overlay.collapsed {
+            padding: 8px;
+        }
+        
+        /* Title HUD */
+        .title-hud {
+            top: 20px;
+            left: 20px;
+            min-width: 250px;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        /* Controls HUD */
+        .controls-hud {
+            top: 20px;
+            right: 20px;
+            max-width: 400px;
+        }
+        
+        .controls-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 12px;
+            color: #ccc;
+            font-weight: 500;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 5px;
+            background-color: rgba(26, 26, 26, 0.8);
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .range-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .range-group input[type="range"] {
+            flex: 1;
+        }
+        
+        .range-group .value {
+            min-width: 35px;
+            font-size: 12px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 8px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+        
+        /* Performance HUD */
+        .performance-hud {
+            bottom: 20px;
+            left: 20px;
+            min-width: 250px;
+        }
+        
+        .performance-content {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .perf-metric {
+            text-align: center;
+        }
+        
+        .perf-metric .label {
+            color: #888;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+        
+        .perf-metric .value {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        /* Keybinds HUD */
+        .keybinds-hud {
+            bottom: 20px;
+            right: 20px;
+            max-width: 300px;
+        }
+        
+        .keybinds-content {
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.4;
+            margin-top: 10px;
+        }
+        
+        .keybind {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .keybind .key {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        /* HUD Toggle Buttons */
+        .hud-toggle {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .hud-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Global HUD Toggle */
+        .global-hud-toggle {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(42, 42, 42, 0.9);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+        
+        .global-hud-toggle:hover {
+            background-color: rgba(76, 175, 80, 0.8);
+        }
+        
+        /* Loading and Error States */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #4CAF50;
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            background-color: rgba(42, 26, 26, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ff6b6b;
+            max-width: 400px;
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        /* Hidden state */
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .collapsed .controls-content,
+        .collapsed .performance-content,
+        .collapsed .keybinds-content {
+            display: none;
+        }
+        
+        .collapsed .title {
+            font-size: 16px;
+        }
+        
+        .collapsed .subtitle {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="promised-canvas"></canvas>
-  <div id="hud">
-    <div><b>Controls</b>:</div>
-    <div>[Space] - Pause physics</div>
-    <div>[2] - Toggle Line View</div>
-    <div>[3] - Toggle Oval View</div>
-    <div>[4] - Toggle Rescreen</div>
-    <div>[5]/[6] - Increase/Decrease Oval Size</div>
-    <div>[H] - Limit Paint</div>
-    <div>Scroll - Zoom, Drag - Pan</div>
-    <br>
-    <div><b>URL Parameters</b>:</div>
-    <div>numPromisers, expansionPixel, speed</div>
-    <div>firstRatio, halfsize, zoom</div>
-    <div>lineView, ovalView, rescreen</div>
-    <div>limitPaint, paintLimit, spacepressed</div>
-    <div>width, height</div>
-    <div><b>Example</b>: #numPromisers=5000&speed=5</div>
-  </div>
+    <!-- Full-window canvas -->
+    <canvas id="promised-canvas" style="display: none;"></canvas>
+    
+    <!-- Global HUD Toggle -->
+    <button id="global-hud-toggle" class="global-hud-toggle" style="display: none;">
+        Toggle HUD (H)
+    </button>
+    
+    <!-- Title HUD -->
+    <div id="title-hud" class="hud-overlay title-hud" style="display: none;">
+        <button class="hud-toggle" onclick="toggleHUD('title-hud')" title="Collapse">−</button>
+        <div class="title">Promisers WASM</div>
+        <div class="subtitle">Rust WebAssembly Implementation</div>
+    </div>
+    
+    <!-- Controls HUD -->
+    <div id="controls-hud" class="hud-overlay controls-hud" style="display: none;">
+        <button class="hud-toggle" onclick="toggleHUD('controls-hud')" title="Collapse">−</button>
+        <strong>Controls</strong>
+        <div class="controls-content">
+        
+            <div class="control-group">
+                <label>Promisers</label>
+                <input type="number" id="numPromisers" value="10000" min="100" max="50000" step="100">
+            </div>
+            
+            <div class="control-group">
+                <label>World Size</label>
+                <input type="number" id="expansionPixel" value="5000" min="1000" max="20000" step="100">
+            </div>
+            
+            <div class="control-group">
+                <label>Speed</label>
+                <div class="range-group">
+                    <input type="range" id="speed" value="3" min="0.1" max="20" step="0.1">
+                    <span class="value" id="speedValue">3</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>First Ratio</label>
+                <div class="range-group">
+                    <input type="range" id="firstRatio" value="0.92" min="0" max="1" step="0.01">
+                    <span class="value" id="firstRatioValue">0.92</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>Target FPS</label>
+                <div class="range-group">
+                    <input type="range" id="targetFPS" value="30" min="1" max="120" step="1">
+                    <span class="value" id="targetFPSValue">30</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>Zoom</label>
+                <div class="range-group">
+                    <input type="range" id="zoom" value="1" min="0.1" max="10" step="0.1">
+                    <span class="value" id="zoomValue">1</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>View Options</label>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="lineView" checked>
+                    <label for="lineView">Lines</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="ovalView">
+                    <label for="ovalView">Ovals</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="rescreen" checked>
+                    <label for="rescreen">Clear Screen</label>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button id="pauseBtn">Pause</button>
+                <button id="resetBtn">Reset</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance HUD -->
+    <div id="performance-hud" class="hud-overlay performance-hud" style="display: none;">
+        <button class="hud-toggle" onclick="toggleHUD('performance-hud')" title="Collapse">−</button>
+        <strong>Performance</strong>
+        <div class="performance-content">
+            <div class="perf-metric">
+                <div class="label">FPS</div>
+                <div class="value" id="fps">0</div>
+            </div>
+            <div class="perf-metric">
+                <div class="label">Frame (ms)</div>
+                <div class="value" id="frameTime">0</div>
+            </div>
+            <div class="perf-metric">
+                <div class="label">WASM (ms)</div>
+                <div class="value" id="wasmTime">0</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Keybinds HUD -->
+    <div id="keybinds-hud" class="hud-overlay keybinds-hud" style="display: none;">
+        <button class="hud-toggle" onclick="toggleHUD('keybinds-hud')" title="Collapse">−</button>
+        <strong>Keyboard Shortcuts</strong>
+        <div class="keybinds-content">
+            <div class="keybind">
+                <span class="key">Space</span>
+                <span>Pause/Resume</span>
+            </div>
+            <div class="keybind">
+                <span class="key">H</span>
+                <span>Toggle HUD</span>
+            </div>
+            <div class="keybind">
+                <span class="key">2</span>
+                <span>Toggle Lines</span>
+            </div>
+            <div class="keybind">
+                <span class="key">3</span>
+                <span>Toggle Ovals</span>
+            </div>
+            <div class="keybind">
+                <span class="key">4</span>
+                <span>Toggle Clear</span>
+            </div>
+            <div class="keybind">
+                <span class="key">Mouse</span>
+                <span>Pan & Zoom</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading and Error States -->
+    <div id="loading" class="loading">Loading WebAssembly module...</div>
+    <div id="error" class="error" style="display: none;"></div>
 
-  <!-- Your simulation script goes here -->
-  <script type="module" src="./promisers.js"></script>
+    <script type="module">
+        import init, { Simulation } from './pkg/promisers_wasm.js';
+        
+        let simulation = null;
+        let canvas = null;
+        let ctx = null;
+        let animationId = null;
+        let lastTime = 0;
+        let fps = 0;
+        let frameTime = 0;
+        let wasmTime = 0;
+        
+        // Simulation state
+        let center = { x: 2500, y: 2500 };
+        let zoom = 1;
+        let paused = false;
+        let lineView = true;
+        let ovalView = false;
+        let rescreen = true;
+        
+        // Mouse/drag state
+        let isDragging = false;
+        let mouseLastX = -1;
+        let mouseLastY = -1;
+        
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsTime = 0;
+        
+        // HUD state
+        let hudVisible = true;
+        
+        // HUD toggle functionality
+        window.toggleHUD = function(hudId) {
+            const hud = document.getElementById(hudId);
+            hud.classList.toggle('collapsed');
+            const toggle = hud.querySelector('.hud-toggle');
+            toggle.textContent = hud.classList.contains('collapsed') ? '+' : '−';
+        }
+        
+        function toggleAllHUDs() {
+            hudVisible = !hudVisible;
+            const huds = document.querySelectorAll('.hud-overlay');
+            const globalToggle = document.getElementById('global-hud-toggle');
+            
+            huds.forEach(hud => {
+                if (hudVisible) {
+                    hud.classList.remove('hidden');
+                } else {
+                    hud.classList.add('hidden');
+                }
+            });
+            
+            globalToggle.textContent = hudVisible ? 'Hide HUD (H)' : 'Show HUD (H)';
+        }
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        async function main() {
+            try {
+                // Initialize WASM
+                await init();
+                
+                // Hide loading, show canvas and HUDs
+                document.getElementById('loading').style.display = 'none';
+                canvas = document.getElementById('promised-canvas');
+                canvas.style.display = 'block';
+                
+                // Show HUD elements
+                document.getElementById('global-hud-toggle').style.display = 'block';
+                document.querySelectorAll('.hud-overlay').forEach(el => {
+                    el.style.display = 'block';
+                });
+                
+                ctx = canvas.getContext('2d');
+                resizeCanvas();
+                
+                initializeSimulation();
+                setupEventListeners();
+                startAnimationLoop();
+                
+            } catch (error) {
+                console.error('Failed to initialize WASM:', error);
+                document.getElementById('loading').style.display = 'none';
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = `Failed to load WebAssembly: ${error.message}`;
+                errorEl.style.display = 'block';
+            }
+        }
+        
+        function initializeSimulation() {
+            const numPromisers = parseInt(document.getElementById('numPromisers').value);
+            const expansionPixel = parseInt(document.getElementById('expansionPixel').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            const firstRatio = parseFloat(document.getElementById('firstRatio').value);
+            
+            simulation = new Simulation(numPromisers, expansionPixel, speed, firstRatio);
+            center.x = expansionPixel / 2;
+            center.y = expansionPixel / 2;
+        }
+        
+        function setupEventListeners() {
+            // Window resize
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Global HUD toggle
+            document.getElementById('global-hud-toggle').addEventListener('click', toggleAllHUDs);
+            
+            // Control change handlers
+            document.getElementById('speed').addEventListener('input', (e) => {
+                document.getElementById('speedValue').textContent = e.target.value;
+                updateSimulationConfig();
+            });
+            
+            document.getElementById('firstRatio').addEventListener('input', (e) => {
+                document.getElementById('firstRatioValue').textContent = e.target.value;
+                updateSimulationConfig();
+            });
+            
+            document.getElementById('targetFPS').addEventListener('input', (e) => {
+                document.getElementById('targetFPSValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('zoom').addEventListener('input', (e) => {
+                zoom = parseFloat(e.target.value);
+                document.getElementById('zoomValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('numPromisers').addEventListener('change', updateSimulationConfig);
+            document.getElementById('expansionPixel').addEventListener('change', updateSimulationConfig);
+            
+            document.getElementById('lineView').addEventListener('change', (e) => {
+                lineView = e.target.checked;
+            });
+            
+            document.getElementById('ovalView').addEventListener('change', (e) => {
+                ovalView = e.target.checked;
+            });
+            
+            document.getElementById('rescreen').addEventListener('change', (e) => {
+                rescreen = e.target.checked;
+            });
+            
+            // Button handlers
+            document.getElementById('pauseBtn').addEventListener('click', () => {
+                paused = !paused;
+                simulation.set_paused(paused);
+                document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+            });
+            
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                initializeSimulation();
+            });
+            
+            // Mouse/touch handlers
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                mouseLastX = e.clientX;
+                mouseLastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                mouseLastX = -1;
+                mouseLastY = -1;
+                canvas.style.cursor = 'grab';
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+                mouseLastX = -1;
+                mouseLastY = -1;
+                canvas.style.cursor = 'grab';
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const currX = e.clientX;
+                const currY = e.clientY;
+                
+                if (mouseLastX !== -1 && mouseLastY !== -1) {
+                    center.x += (mouseLastX - currX) / zoom;
+                    center.y += (mouseLastY - currY) / zoom;
+                }
+                
+                mouseLastX = currX;
+                mouseLastY = currY;
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                zoom = Math.max(0.1, Math.min(10, zoom * zoomFactor));
+                document.getElementById('zoom').value = zoom;
+                document.getElementById('zoomValue').textContent = zoom.toFixed(1);
+            });
+            
+            // Keyboard handlers
+            document.addEventListener('keyup', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case ' ':
+                        e.preventDefault();
+                        paused = !paused;
+                        simulation.set_paused(paused);
+                        document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+                        break;
+                    case 'h':
+                        toggleAllHUDs();
+                        break;
+                    case '2':
+                        lineView = !lineView;
+                        document.getElementById('lineView').checked = lineView;
+                        break;
+                    case '3':
+                        ovalView = !ovalView;
+                        document.getElementById('ovalView').checked = ovalView;
+                        break;
+                    case '4':
+                        rescreen = !rescreen;
+                        document.getElementById('rescreen').checked = rescreen;
+                        break;
+                }
+            });
+        }
+        
+        function updateSimulationConfig() {
+            const numPromisers = parseInt(document.getElementById('numPromisers').value);
+            const expansionPixel = parseInt(document.getElementById('expansionPixel').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            const firstRatio = parseFloat(document.getElementById('firstRatio').value);
+            
+            simulation.update_config(numPromisers, expansionPixel, speed, firstRatio);
+            center.x = expansionPixel / 2;
+            center.y = expansionPixel / 2;
+        }
+        
+        function fixX(x) {
+            return Math.floor((x - center.x + canvas.width / 2) * zoom);
+        }
+        
+        function fixY(y) {
+            return Math.floor((y - center.y + canvas.height / 2) * zoom);
+        }
+        
+        function render() {
+            if (rescreen) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            const numPromisers = simulation.num_promisers;
+            
+            if (lineView) {
+                for (let i = 0; i < numPromisers; i++) {
+                    const x = simulation.get_promiser_x(i);
+                    const y = simulation.get_promiser_y(i);
+                    const lastX = simulation.get_promiser_last_x(i);
+                    const lastY = simulation.get_promiser_last_y(i);
+                    const color = simulation.get_promiser_color(i);
+                    
+                    ctx.strokeStyle = color;
+                    ctx.beginPath();
+                    ctx.moveTo(fixX(lastX), fixY(lastY));
+                    ctx.lineTo(fixX(x), fixY(y));
+                    ctx.stroke();
+                }
+            }
+            
+            if (ovalView) {
+                for (let i = 0; i < numPromisers; i++) {
+                    const x = simulation.get_promiser_x(i);
+                    const y = simulation.get_promiser_y(i);
+                    const isStatic = simulation.get_promiser_is_static(i);
+                    
+                    ctx.fillStyle = isStatic ? 'darkgray' : 'yellow';
+                    ctx.beginPath();
+                    ctx.ellipse(fixX(x), fixY(y), 6, 6, 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        function animate(currentTime) {
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            // Update FPS counter
+            frameCount++;
+            if (currentTime - lastFpsTime >= 1000) {
+                fps = Math.round(frameCount * 1000 / (currentTime - lastFpsTime));
+                frameCount = 0;
+                lastFpsTime = currentTime;
+                document.getElementById('fps').textContent = fps;
+            }
+            
+            // Run simulation step
+            const startTime = performance.now();
+            if (!paused) {
+                simulation.act();
+            }
+            const endTime = performance.now();
+            wasmTime = (endTime - startTime).toFixed(2);
+            
+            // Render
+            render();
+            
+            frameTime = (performance.now() - currentTime).toFixed(2);
+            document.getElementById('frameTime').textContent = frameTime;
+            document.getElementById('wasmTime').textContent = wasmTime;
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function startAnimationLoop() {
+            lastTime = performance.now();
+            lastFpsTime = lastTime;
+            animate(lastTime);
+        }
+        
+        // Start the application
+        main();
+    </script>
 </body>
 </html>

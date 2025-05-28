@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Promised Land Simulation</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+    }
+    #promised-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 5px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="promised-canvas"></canvas>
+  <div id="hud">
+    <div><b>Controls</b>:</div>
+    <div>[Space] - Pause physics</div>
+    <div>[2] - Toggle Line View</div>
+    <div>[3] - Toggle Oval View</div>
+    <div>[4] - Toggle Rescreen</div>
+    <div>[5]/[6] - Increase/Decrease Oval Size</div>
+    <div>[H] - Limit Paint</div>
+    <div>Scroll - Zoom, Drag - Pan</div>
+    <br>
+    <div><b>URL Parameters</b>:</div>
+    <div>numPromisers, expansionPixel, speed</div>
+    <div>firstRatio, halfsize, zoom</div>
+    <div>lineView, ovalView, rescreen</div>
+    <div>limitPaint, paintLimit, spacepressed</div>
+    <div>width, height</div>
+    <div><b>Example</b>: #numPromisers=5000&speed=5</div>
+  </div>
+
+  <!-- Your simulation script goes here -->
+  <script type="module" src="./promisers.js"></script>
+</body>
+</html>
