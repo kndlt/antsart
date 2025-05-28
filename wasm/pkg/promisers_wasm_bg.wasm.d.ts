@@ -1,0 +1,32 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_promiser_free: (a: number, b: number) => void;
+export const promiser_new: (a: number, b: number, c: number) => number;
+export const promiser_get_x: (a: number) => number;
+export const promiser_set_x: (a: number, b: number) => void;
+export const promiser_get_y: (a: number) => number;
+export const promiser_set_y: (a: number, b: number) => void;
+export const promiser_get_last_x: (a: number) => number;
+export const promiser_get_last_y: (a: number) => number;
+export const promiser_get_speed: (a: number) => number;
+export const greet: (a: number, b: number) => void;
+export const __wbg_simulation_free: (a: number, b: number) => void;
+export const simulation_new: (a: number, b: number, c: number, d: number) => number;
+export const simulation_initialize: (a: number) => void;
+export const simulation_act: (a: number) => void;
+export const simulation_num_promisers: (a: number) => number;
+export const simulation_paused: (a: number) => number;
+export const simulation_set_paused: (a: number, b: number) => void;
+export const simulation_get_promiser_x: (a: number, b: number) => number;
+export const simulation_get_promiser_y: (a: number, b: number) => number;
+export const simulation_get_promiser_last_x: (a: number, b: number) => number;
+export const simulation_get_promiser_last_y: (a: number, b: number) => number;
+export const simulation_get_promiser_color: (a: number, b: number) => [number, number];
+export const simulation_get_promiser_is_static: (a: number, b: number) => number;
+export const simulation_update_config: (a: number, b: number, c: number, d: number, e: number) => void;
+export const __wbindgen_export_0: WebAssembly.Table;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_start: () => void;

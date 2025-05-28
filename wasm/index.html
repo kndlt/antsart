@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promisers WASM - Rust WebAssembly Version</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        
+        #promised-canvas {
+            border: 2px solid #333;
+            background-color: black;
+            cursor: grab;
+        }
+        
+        #promised-canvas:active {
+            cursor: grabbing;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100px;
+        }
+        
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .performance {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+        }
+        
+        .keybinds {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 10px;
+            text-align: center;
+            line-height: 1.4;
+        }
+        
+        .loading {
+            font-size: 18px;
+            color: #4CAF50;
+            text-align: center;
+            margin: 50px 0;
+        }
+        
+        .error {
+            color: #ff6b6b;
+            background-color: #2a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Promisers WASM</div>
+        <div class="subtitle">Rust WebAssembly Implementation</div>
+        
+        <div id="loading" class="loading">Loading WebAssembly module...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <canvas id="promised-canvas" width="1024" height="768" style="display: none;"></canvas>
+        
+        <div class="controls" style="display: none;">
+            <div class="control-group">
+                <label>Promisers</label>
+                <input type="number" id="numPromisers" value="10000" min="100" max="50000" step="100">
+            </div>
+            
+            <div class="control-group">
+                <label>World Size</label>
+                <input type="number" id="expansionPixel" value="5000" min="1000" max="20000" step="100">
+            </div>
+            
+            <div class="control-group">
+                <label>Speed</label>
+                <input type="range" id="speed" value="3" min="0.1" max="20" step="0.1">
+                <span id="speedValue">3</span>
+            </div>
+            
+            <div class="control-group">
+                <label>First Ratio</label>
+                <input type="range" id="firstRatio" value="0.92" min="0" max="1" step="0.01">
+                <span id="firstRatioValue">0.92</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Target FPS</label>
+                <input type="range" id="targetFPS" value="30" min="1" max="120" step="1">
+                <span id="targetFPSValue">30</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Zoom</label>
+                <input type="range" id="zoom" value="1" min="0.1" max="10" step="0.1">
+                <span id="zoomValue">1</span>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="lineView" checked>
+                <label for="lineView">Lines</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="ovalView">
+                <label for="ovalView">Ovals</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="rescreen" checked>
+                <label for="rescreen">Clear Screen</label>
+            </div>
+            
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+        
+        <div class="performance" style="display: none;">
+            FPS: <span id="fps">0</span> | 
+            Frame Time: <span id="frameTime">0</span>ms | 
+            WASM Overhead: ~<span id="wasmTime">0</span>ms
+        </div>
+        
+        <div class="keybinds" style="display: none;">
+            <strong>Controls:</strong> Space: Pause/Resume | Mouse: Pan & Zoom | Numbers 2-6: Toggle Views
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { Simulation } from './wasm/pkg/promisers_wasm.js';
+        
+        let simulation = null;
+        let canvas = null;
+        let ctx = null;
+        let animationId = null;
+        let lastTime = 0;
+        let fps = 0;
+        let frameTime = 0;
+        let wasmTime = 0;
+        
+        // Simulation state
+        let center = { x: 2500, y: 2500 };
+        let zoom = 1;
+        let paused = false;
+        let lineView = true;
+        let ovalView = false;
+        let rescreen = true;
+        
+        // Mouse/drag state
+        let isDragging = false;
+        let mouseLastX = -1;
+        let mouseLastY = -1;
+        
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsTime = 0;
+        
+        async function main() {
+            try {
+                // Initialize WASM
+                await init();
+                
+                // Hide loading, show UI
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('promised-canvas').style.display = 'block';
+                document.querySelectorAll('.controls, .performance, .keybinds').forEach(el => {
+                    el.style.display = 'flex';
+                });
+                
+                // Initialize canvas and simulation
+                canvas = document.getElementById('promised-canvas');
+                ctx = canvas.getContext('2d');
+                
+                initializeSimulation();
+                setupEventListeners();
+                startAnimationLoop();
+                
+            } catch (error) {
+                console.error('Failed to initialize WASM:', error);
+                document.getElementById('loading').style.display = 'none';
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = `Failed to load WebAssembly: ${error.message}`;
+                errorEl.style.display = 'block';
+            }
+        }
+        
+        function initializeSimulation() {
+            const numPromisers = parseInt(document.getElementById('numPromisers').value);
+            const expansionPixel = parseInt(document.getElementById('expansionPixel').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            const firstRatio = parseFloat(document.getElementById('firstRatio').value);
+            
+            simulation = new Simulation(numPromisers, expansionPixel, speed, firstRatio);
+            center.x = expansionPixel / 2;
+            center.y = expansionPixel / 2;
+        }
+        
+        function setupEventListeners() {
+            // Control change handlers
+            document.getElementById('speed').addEventListener('input', (e) => {
+                document.getElementById('speedValue').textContent = e.target.value;
+                updateSimulationConfig();
+            });
+            
+            document.getElementById('firstRatio').addEventListener('input', (e) => {
+                document.getElementById('firstRatioValue').textContent = e.target.value;
+                updateSimulationConfig();
+            });
+            
+            document.getElementById('targetFPS').addEventListener('input', (e) => {
+                document.getElementById('targetFPSValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('zoom').addEventListener('input', (e) => {
+                zoom = parseFloat(e.target.value);
+                document.getElementById('zoomValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('numPromisers').addEventListener('change', updateSimulationConfig);
+            document.getElementById('expansionPixel').addEventListener('change', updateSimulationConfig);
+            
+            document.getElementById('lineView').addEventListener('change', (e) => {
+                lineView = e.target.checked;
+            });
+            
+            document.getElementById('ovalView').addEventListener('change', (e) => {
+                ovalView = e.target.checked;
+            });
+            
+            document.getElementById('rescreen').addEventListener('change', (e) => {
+                rescreen = e.target.checked;
+            });
+            
+            // Button handlers
+            document.getElementById('pauseBtn').addEventListener('click', () => {
+                paused = !paused;
+                simulation.set_paused(paused);
+                document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+            });
+            
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                initializeSimulation();
+            });
+            
+            // Mouse/touch handlers
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                mouseLastX = e.offsetX;
+                mouseLastY = e.offsetY;
+                canvas.style.cursor = 'grabbing';
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                mouseLastX = -1;
+                mouseLastY = -1;
+                canvas.style.cursor = 'grab';
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const currX = e.offsetX;
+                const currY = e.offsetY;
+                
+                if (mouseLastX !== -1 && mouseLastY !== -1) {
+                    center.x += (mouseLastX - currX) / zoom;
+                    center.y += (mouseLastY - currY) / zoom;
+                }
+                
+                mouseLastX = currX;
+                mouseLastY = currY;
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                zoom = Math.max(0.1, Math.min(10, zoom * zoomFactor));
+                document.getElementById('zoom').value = zoom;
+                document.getElementById('zoomValue').textContent = zoom.toFixed(1);
+            });
+            
+            // Keyboard handlers
+            document.addEventListener('keyup', (e) => {
+                switch (e.key) {
+                    case ' ':
+                        paused = !paused;
+                        simulation.set_paused(paused);
+                        document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+                        break;
+                    case '2':
+                        lineView = !lineView;
+                        document.getElementById('lineView').checked = lineView;
+                        break;
+                    case '3':
+                        ovalView = !ovalView;
+                        document.getElementById('ovalView').checked = ovalView;
+                        break;
+                    case '4':
+                        rescreen = !rescreen;
+                        document.getElementById('rescreen').checked = rescreen;
+                        break;
+                }
+            });
+        }
+        
+        function updateSimulationConfig() {
+            const numPromisers = parseInt(document.getElementById('numPromisers').value);
+            const expansionPixel = parseInt(document.getElementById('expansionPixel').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            const firstRatio = parseFloat(document.getElementById('firstRatio').value);
+            
+            simulation.update_config(numPromisers, expansionPixel, speed, firstRatio);
+            center.x = expansionPixel / 2;
+            center.y = expansionPixel / 2;
+        }
+        
+        function fixX(x) {
+            return Math.floor((x - center.x + canvas.width / 2) * zoom);
+        }
+        
+        function fixY(y) {
+            return Math.floor((y - center.y + canvas.height / 2) * zoom);
+        }
+        
+        function render() {
+            if (rescreen) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            const numPromisers = simulation.num_promisers;
+            
+            if (lineView) {
+                for (let i = 0; i < numPromisers; i++) {
+                    const x = simulation.get_promiser_x(i);
+                    const y = simulation.get_promiser_y(i);
+                    const lastX = simulation.get_promiser_last_x(i);
+                    const lastY = simulation.get_promiser_last_y(i);
+                    const color = simulation.get_promiser_color(i);
+                    
+                    ctx.strokeStyle = color;
+                    ctx.beginPath();
+                    ctx.moveTo(fixX(lastX), fixY(lastY));
+                    ctx.lineTo(fixX(x), fixY(y));
+                    ctx.stroke();
+                }
+            }
+            
+            if (ovalView) {
+                for (let i = 0; i < numPromisers; i++) {
+                    const x = simulation.get_promiser_x(i);
+                    const y = simulation.get_promiser_y(i);
+                    const isStatic = simulation.get_promiser_is_static(i);
+                    
+                    ctx.fillStyle = isStatic ? 'darkgray' : 'yellow';
+                    ctx.beginPath();
+                    ctx.ellipse(fixX(x), fixY(y), 6, 6, 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        function animate(currentTime) {
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            // Update FPS counter
+            frameCount++;
+            if (currentTime - lastFpsTime >= 1000) {
+                fps = Math.round(frameCount * 1000 / (currentTime - lastFpsTime));
+                frameCount = 0;
+                lastFpsTime = currentTime;
+                document.getElementById('fps').textContent = fps;
+            }
+            
+            // Run simulation step
+            const startTime = performance.now();
+            if (!paused) {
+                simulation.act();
+            }
+            const endTime = performance.now();
+            wasmTime = (endTime - startTime).toFixed(2);
+            
+            // Render
+            render();
+            
+            frameTime = (performance.now() - currentTime).toFixed(2);
+            document.getElementById('frameTime').textContent = frameTime;
+            document.getElementById('wasmTime').textContent = wasmTime;
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function startAnimationLoop() {
+            lastTime = performance.now();
+            lastFpsTime = lastTime;
+            animate(lastTime);
+        }
+        
+        // Start the application
+        main();
+    </script>
+</body>
+</html>
