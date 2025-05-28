@@ -243,10 +243,23 @@ function paint() {
     }
   }
 }
+const STEP_MS = 1000 / 30;
+let lastTime = performance.now();
+let accumulator = 0;
 
-function loop() {
-  act();
-  if (isPainting) paint();
+function loop(currentTime) { // <-- yes, this must be here
+  let delta = currentTime - lastTime;
+  if (delta > 1000) delta = STEP_MS;
+  lastTime = currentTime;
+
+  accumulator += delta;
+
+  if (accumulator >= STEP_MS) {
+    act();
+    if (isPainting) paint();
+    accumulator -= STEP_MS;
+  }
+
   requestAnimationFrame(loop);
 }
 
@@ -299,4 +312,4 @@ document.addEventListener('keyup', (e) => {
 });
 
 makeSecondPromisers(5);
-loop();
+requestAnimationFrame(loop);
