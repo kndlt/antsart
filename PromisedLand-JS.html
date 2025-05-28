@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promised Land Simulation - JS Port (Float Precision)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #canvas {
+            display: block;
+            cursor: grab;
+        }
+        #canvas:active {
+            cursor: grabbing;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .control-item {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="controls">
+        <div class="control-item">Space: Pause/Resume</div>
+        <div class="control-item">L: Toggle Lines</div>
+        <div class="control-item">O: Toggle Ovals</div>
+        <div class="control-item">Mouse: Pan | Wheel: Zoom</div>
+        <div class="control-item">Agents: <span id="agentCount">10000</span></div>
+        <div class="control-item">FPS: <span id="fps">60</span></div>
+    </div>
+
+    <script>
+        // Float32 helper to match Java float precision
+        function toFloat32(value) {
+            return Math.fround(value);
+        }
+
+        // Promiser base class (matching your Java exactly)
+        class Promiser {
+            constructor(x, y, speed) {
+                this.x = toFloat32(x);
+                this.y = toFloat32(y);
+                this.lastX = toFloat32(x);
+                this.lastY = toFloat32(y);
+                this.speed = toFloat32(speed);
+                this.currentTarget = null;
+            }
+        }
+
+        // FirstPromiser class - exact port of your Java code
+        class FirstPromiser extends Promiser {
+            constructor(x, y, speed, isStatic) {
+                super(x, y, speed);
+                this.isStatic = isStatic;
+                this.hitDistance = Math.floor(speed); // int casting like Java
+                this.numPromises = 100;
+                this.myPromises = new Array(this.numPromises);
+                this.size = 0;
+                
+                // Fill with nulls initially
+                for (let i = 0; i < this.numPromises; i++) {
+                    this.myPromises[i] = null;
+                }
+            }
+
+            addPromise(target) {
+                // Exact Java logic
+                if (this.size >= this.numPromises) {
+                    const randomIndex = Math.floor(Math.random() * this.numPromises);
+                    this.myPromises[randomIndex] = target;
+                    this.currentTarget = this.myPromises[this.numPromises - 1];
+                } else {
+                    this.myPromises[this.size] = target;
+                    this.size++;
+                    this.currentTarget = target;
+                }
+            }
+
+            act() {
+                if (this.isStatic) {
+                    // do nothing
+                } else {
+                    if (this.currentTarget instanceof Promiser) {
+                        const myTarget = this.currentTarget;
+
+                        // move toward target - exact Java float math
+                        const dx = toFloat32(myTarget.x - this.x);
+                        const dy = toFloat32(myTarget.y - this.y);
+                        const distance = toFloat32(Math.sqrt(dy * dy + dx * dx));
+                        
+                        // if promise is kept execute start promise
+                        if (distance < this.hitDistance) {
+                            this.size--; // get one off
+                            // if there's no more promises stay in place
+                            if (this.size <= 0) {
+                                this.currentTarget = null;
+                            } else {
+                                this.currentTarget = this.myPromises[this.size - 1];
+                            }
+                        }
+                        
+                        if (distance != 0) {
+                            const ratio = toFloat32(this.speed / distance);
+                            this.lastX = this.x;
+                            this.lastY = this.y;
+                            this.x = toFloat32(this.x + dx * ratio);
+                            this.y = toFloat32(this.y + dy * ratio);
+                        }
+                    }
+                }
+            }
+        }
+
+        // SecondPromiser class
+        class SecondPromiser extends FirstPromiser {
+            constructor(x, y, speed, isStatic) {
+                super(x, y, speed, isStatic);
+                this.color = this.getColorForPromiseCount();
+                this.trail = [];
+                this.maxTrailLength = 50;
+            }
+
+            getColorForPromiseCount() {
+                const count = this.size;
+                if (count === 0) return '#FF0000'; // Red
+                if (count < 5) return '#FF8800'; // Orange  
+                if (count < 10) return '#FFFF00'; // Yellow
+                if (count < 20) return '#00FF00'; // Green
+                return '#0088FF'; // Blue
+            }
+
+            act() {
+                super.act();
+                this.color = this.getColorForPromiseCount();
+                
+                // Add to trail after movement
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > this.maxTrailLength) {
+                    this.trail.shift();
+                }
+                
+                // Occasionally ask other agents for promises
+                if (Math.random() < 0.001 && this.size < 50) {
+                    this.askForPromise();
+                }
+            }
+
+            askForPromise() {
+                // Create a static promiser as target (like original)
+                const target = new Promiser(
+                    toFloat32(Math.random() * 800),
+                    toFloat32(Math.random() * 600),
+                    toFloat32(0)
+                );
+                this.addPromise(target);
+            }
+        }
+
+        // Main simulation class
+        class PromisedLandSimulation {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.agents = [];
+                this.paused = false;
+                this.showLines = true;
+                this.showOvals = true;
+                
+                // View controls
+                this.zoom = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                this.isDragging = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                
+                // Performance tracking
+                this.frameCount = 0;
+                this.lastTime = performance.now();
+                this.fps = 0;
+                
+                this.setupCanvas();
+                this.setupControls();
+                this.initializeAgents();
+                this.startSimulation();
+            }
+
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // Mouse controls
+                this.canvas.addEventListener('mousedown', (e) => {
+                    this.isDragging = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                });
+                
+                this.canvas.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) {
+                        const deltaX = e.clientX - this.lastMouseX;
+                        const deltaY = e.clientY - this.lastMouseY;
+                        this.offsetX += deltaX / this.zoom;
+                        this.offsetY += deltaY / this.zoom;
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                    }
+                });
+                
+                this.canvas.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                });
+                
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom *= zoomFactor;
+                    this.zoom = Math.max(0.1, Math.min(10, this.zoom));
+                });
+            }
+
+            setupControls() {
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key) {
+                        case ' ':
+                            e.preventDefault();
+                            this.paused = !this.paused;
+                            break;
+                        case 'l':
+                        case 'L':
+                            this.showLines = !this.showLines;
+                            break;
+                        case 'o':
+                        case 'O':
+                            this.showOvals = !this.showOvals;
+                            break;
+                    }
+                });
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            initializeAgents() {
+                const numAgents = 10000;
+                document.getElementById('agentCount').textContent = numAgents;
+                
+                for (let i = 0; i < numAgents; i++) {
+                    const x = toFloat32(Math.random() * 800);
+                    const y = toFloat32(Math.random() * 600);
+                    const speed = toFloat32(0.2 + Math.random() * 0.8); // Random speed like original
+                    const isStatic = Math.random() < 0.1; // 10% static agents
+                    
+                    const agent = new SecondPromiser(x, y, speed, isStatic);
+                    
+                    // Initialize with some random promises like original
+                    const numInitialPromises = Math.floor(Math.random() * 20) + 1;
+                    for (let j = 0; j < numInitialPromises; j++) {
+                        const target = new Promiser(
+                            toFloat32(Math.random() * 800),
+                            toFloat32(Math.random() * 600),
+                            toFloat32(0)
+                        );
+                        agent.addPromise(target);
+                    }
+                    
+                    this.agents.push(agent);
+                }
+            }
+
+            update() {
+                if (!this.paused) {
+                    for (const agent of this.agents) {
+                        agent.act(); // Using exact Java method name
+                    }
+                }
+            }
+
+            render() {
+                // Clear canvas
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Apply transformations
+                this.ctx.save();
+                this.ctx.scale(this.zoom, this.zoom);
+                this.ctx.translate(this.offsetX, this.offsetY);
+                
+                // Render agents
+                for (const agent of this.agents) {
+                    // Draw trail lines
+                    if (this.showLines && agent.trail && agent.trail.length > 1) {
+                        this.ctx.strokeStyle = agent.color + '40';
+                        this.ctx.lineWidth = 0.5;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(agent.trail[0].x, agent.trail[0].y);
+                        for (let i = 1; i < agent.trail.length; i++) {
+                            this.ctx.lineTo(agent.trail[i].x, agent.trail[i].y);
+                        }
+                        this.ctx.stroke();
+                    }
+                    
+                    // Draw agent
+                    if (this.showOvals) {
+                        this.ctx.fillStyle = agent.color;
+                        this.ctx.beginPath();
+                        this.ctx.arc(agent.x, agent.y, 2, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }
+                    
+                    // Draw target line
+                    if (agent.currentTarget && this.showLines) {
+                        this.ctx.strokeStyle = agent.color + '80';
+                        this.ctx.lineWidth = 0.5;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(agent.x, agent.y);
+                        this.ctx.lineTo(agent.currentTarget.x, agent.currentTarget.y);
+                        this.ctx.stroke();
+                    }
+                }
+                
+                this.ctx.restore();
+                
+                // Update FPS
+                this.frameCount++;
+                const currentTime = performance.now();
+                if (currentTime - this.lastTime >= 1000) {
+                    this.fps = Math.round(this.frameCount / ((currentTime - this.lastTime) / 1000));
+                    document.getElementById('fps').textContent = this.fps;
+                    this.frameCount = 0;
+                    this.lastTime = currentTime;
+                }
+            }
+
+            startSimulation() {
+                const animate = () => {
+                    this.update();
+                    this.render();
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+        }
+
+        // Start the simulation when page loads
+        window.addEventListener('load', () => {
+            new PromisedLandSimulation();
+        });
+    </script>
+</body>
+</html>
